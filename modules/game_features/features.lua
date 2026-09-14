@@ -30,6 +30,7 @@ function updateFeatures(version)
     g_game.enableFeature(GameMessageSizeCheck)
     g_game.enableFeature(GameTileAddThingWithStackpos)
     g_game.enableFeature(GameCreatureEmblems)
+    g_game.enableFeature(GameIngameStoreHighlights)
 
     -- TFS 1.8 8.60 Astra extensions.
     g_game.enableFeature(GameAttackSeq)
