@@ -33,8 +33,13 @@
 namespace {
 
 constexpr auto ASTRA_CLIENT_MARKER = "A";
-constexpr auto ASTRA_STORE_HIGHLIGHTS_MARKER = "AstraStoreHighlights";
-constexpr auto ASTRA_SINGLE_CREATURE_MARKS_MARKER = "AstraSingleCreatureMarks";
+constexpr auto ASTRA_CAPABILITIES_MARKER = "C";
+constexpr uint8 ASTRA_CAPABILITY_STORE_HIGHLIGHTS = 1U << 0;
+constexpr uint8 ASTRA_CAPABILITY_SINGLE_CREATURE_MARKS = 1U << 1;
+constexpr uint8 ASTRA_CAPABILITY_ECHO_RAID_VISUALS = 1U << 2;
+constexpr uint8 ASTRA_CAPABILITIES = ASTRA_CAPABILITY_STORE_HIGHLIGHTS |
+                                     ASTRA_CAPABILITY_SINGLE_CREATURE_MARKS |
+                                     ASTRA_CAPABILITY_ECHO_RAID_VISUALS;
 constexpr uint32 ASTRA_CLIENT_SIGNATURE_SEED = 0xA57AC11E;
 constexpr uint32 ASTRA_CLIENT_SIGNATURE_FINAL = 0x4D415354;
 
@@ -96,6 +101,7 @@ void ProtocolGame::sendWorldName()
     send(msg, true);
 }
 
+/** Send authenticated login data, fitting optional markers within the RSA block. */
 void ProtocolGame::sendLoginPacket(uint challengeTimestamp, uint8 challengeRandom)
 {
     auto msg = std::make_shared<OutputMessage>();
@@ -173,49 +179,43 @@ void ProtocolGame::sendLoginPacket(uint challengeTimestamp, uint8 challengeRando
     }
 
     std::string extended = callLuaField<std::string>("getLoginExtendedData");
-    if (!extended.empty()) {
-        msg->addString(extended);
-    } else {
-        msg->addString(std::string("OTCv8"));
-        std::string version = g_app.getVersion();
-        version = stdext::split(version, " ")[0];
-        stdext::replace_all(version, ".", "");
-        if (version.length() == 2) {
-            version += "0";
-        }
 
-        msg->addU16(atoi(version.c_str()));
-        msg->addString(std::string("OTCv8TierByte"));
-        msg->addString(std::string(ASTRA_CLIENT_MARKER));
-        msg->addU32(generateAstraClientSignature(
-            g_game.getOs(),
-            g_game.getCustomProtocolVersion(),
-            m_xteaKey,
-            challengeTimestamp,
-            challengeRandom
-        ));
+// Profile defaults and previous logins must not enable unadvertised layouts,
+// including when custom extended data replaces the built-in capability list.
+g_game.disableFeature(Otc::GameIngameStoreHighlights);
+g_game.disableFeature(Otc::GameAstraSingleCreatureMarks);
+g_game.disableFeature(Otc::GameAstraEchoRaidVisuals);
 
-        // Keep credentials and the Astra signature intact. Optional capability
-        // strings may only consume the remaining space in the RSA block.
-        const auto addOptionalMarker = [&](const std::string& marker) {
-            const size_t payloadSize = msg->getMessageSize() - offset;
-            if (encryptLogin && payloadSize + 2 + marker.size() > static_cast<size_t>(rsaSize)) {
-                g_logger.warning(stdext::format("Login capability '%s' omitted: RSA block is full", marker));
-                return false;
-            }
-            msg->addString(marker);
-            return true;
-        };
+if (!extended.empty()) {
+    msg->addString(extended);
+} else {
+    msg->addString(std::string("OTCv8"));
 
-        // A retry may have less space than the previous login. The Store parser
-        // must match the advertised layout; creature marks are enabled by the
-        // server's feature packet only after their marker has been accepted.
-        g_game.disableFeature(Otc::GameIngameStoreHighlights);
-        g_game.disableFeature(Otc::GameAstraSingleCreatureMarks);
-        if (addOptionalMarker(ASTRA_STORE_HIGHLIGHTS_MARKER))
-            g_game.enableFeature(Otc::GameIngameStoreHighlights);
-        addOptionalMarker(ASTRA_SINGLE_CREATURE_MARKS_MARKER);
+    std::string version = g_app.getVersion();
+    version = stdext::split(version, " ")[0];
+    stdext::replace_all(version, ".", "");
+
+    if (version.length() == 2) {
+        version += "0";
     }
+
+    msg->addU16(atoi(version.c_str()));
+    msg->addString(std::string("OTCv8TierByte"));
+    msg->addString(std::string(ASTRA_CLIENT_MARKER));
+
+    msg->addU32(generateAstraClientSignature(
+        g_game.getOs(),
+        g_game.getCustomProtocolVersion(),
+        m_xteaKey,
+        challengeTimestamp,
+        challengeRandom
+    ));
+
+    // Keep capability negotiation compact: protocol 8.60 encrypts this
+    // payload in a fixed 128-byte RSA block.
+    msg->addString(std::string(ASTRA_CAPABILITIES_MARKER));
+    msg->addU8(ASTRA_CAPABILITIES);
+}
 
     // encrypt with RSA
     if (!encryptLoginBlock(offset))

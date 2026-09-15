@@ -38,6 +38,7 @@
 #include <framework/core/graphicalapplication.h>
 
 #include <framework/graphics/paintershaderprogram.h>
+#include <framework/graphics/shadermanager.h>
 #include <framework/graphics/texturemanager.h>
 #include <framework/graphics/framebuffermanager.h>
 #include "spritemanager.h"
@@ -55,6 +56,8 @@ namespace
 {
 std::unordered_map<std::string, TexturePtr> creatureIconTextureCache;
 std::unordered_set<std::string> missingCreatureIconTextureCache;
+constexpr const char* ECHO_WARDEN_NAME_SHADER = "text_echo_warden";
+constexpr const char* ECHO_EMPOWERED_NAME_SHADER = "text_echo_empowered";
 
 std::string getCreatureIconPath(uint8 iconId, uint8 category)
 {
@@ -316,7 +319,10 @@ void Creature::drawInformation(const Point& point, bool useGray, const Rect& par
     }
 
     if (drawFlags & Otc::DrawNames) {
-        m_nameCache.draw(textRect, fillColor);
+        if (useGray)
+            m_nameCache.draw(textRect, fillColor);
+        else
+            m_nameCache.draw(textRect, fillColor, m_nameShader);
 
         if (m_titleCache.hasText()) {
             Size titleSize = m_titleCache.getTextSize();
@@ -534,6 +540,7 @@ void Creature::onDisappear()
     m_disappearEvent = g_dispatcher.addEvent([self] {
         self->m_removed = true;
         self->stopWalk();
+		self->setEchoRaidVisualState(-1);
 
         self->callLuaField("onDisappear");
         self->m_shieldBlink = false;
@@ -730,6 +737,36 @@ void Creature::setName(const std::string& name)
 {
     m_nameCache.setText(name);
     m_name = name;
+}
+
+void Creature::setId(uint32 id)
+{
+    if (m_id != id)
+        setEchoRaidVisualState(-1);
+    m_id = id;
+}
+
+void Creature::setEchoRaidVisualState(int8 state)
+{
+    EchoRaidVisualState nextState;
+    if (state == static_cast<int8>(EchoRaidVisualState::None))
+        nextState = EchoRaidVisualState::None;
+    else if (state == static_cast<int8>(EchoRaidVisualState::Warden))
+        nextState = EchoRaidVisualState::Warden;
+    else if (state == static_cast<int8>(EchoRaidVisualState::Empowered))
+        nextState = EchoRaidVisualState::Empowered;
+    else
+        return;
+
+    if (m_echoRaidVisualState == nextState)
+        return;
+    m_echoRaidVisualState = nextState;
+    if (nextState == EchoRaidVisualState::Warden)
+        m_nameShader = g_shaders.getShader(ECHO_WARDEN_NAME_SHADER);
+    else if (nextState == EchoRaidVisualState::Empowered)
+        m_nameShader = g_shaders.getShader(ECHO_EMPOWERED_NAME_SHADER);
+    else
+        m_nameShader.reset();
 }
 
 void Creature::setHealthPercent(uint8 healthPercent)
