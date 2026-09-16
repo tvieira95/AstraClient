@@ -52,8 +52,9 @@ namespace
 {
 bool shouldDrawMagicEffect(int effectId)
 {
-    // Loot highlight is rendered by Tile::drawLootHighlights; ignore map magic effects.
-    if (effectId == Otc::LootHighlightEffectId)
+    // Negotiated container highlights are rendered by Tile::drawLootHighlights.
+    // Keep effect 252 available to legacy servers that use it as a regular map effect.
+    if (effectId == Otc::LootHighlightEffectId && g_game.getFeature(Otc::GameContainerTypes))
         return false;
 
     return true;

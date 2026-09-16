@@ -1,6 +1,7 @@
 marketWindow = nil
 
 local marketItems = {}
+local marketItemNames = {}
 local categoryList = {}
 local depotLockerItems = {}
 local buyOffers = {}
@@ -21,8 +22,6 @@ local mainMarket = nil
 local lastItemID = 0
 local lastItemTier = 0
 local currentActionType = 1
-local marketCatalogReady = false
-local marketCatalogBuilding = false
 local marketCatalogEvent = nil
 local marketCatalogGeneration = 0
 local cachedCyclopediaMarketItems = nil
@@ -80,7 +79,6 @@ local function cancelMarketCatalogBuild()
 		marketCatalogEvent = nil
 	end
 
-	marketCatalogBuilding = false
 	marketCatalogGeneration = marketCatalogGeneration + 1
 end
 
@@ -97,8 +95,8 @@ end
 
 local function resetMarketCatalog()
 	cancelMarketCatalogBuild()
-	marketCatalogReady = false
 	marketItems = {}
+	marketItemNames = {}
 	categoryList = {}
 
 	if marketWindow and not marketWindow:isDestroyed() then
@@ -559,37 +557,6 @@ local function buildCategoryList()
 	table.sort(categoryList, function(a, b) return a[2] < b[2] end)
 end
 
-local function renderMarketCategoriesSync(onComplete)
-	local categoryPanel = marketWindow.contentPanel.category
-	categoryPanel:destroyChildren()
-
-	for index, pair in ipairs(categoryList) do
-		local widget = g_ui.createWidget('CategoryItemListLabel', categoryPanel)
-		local color = (index - 1) % 2 == 0 and '#414141' or '#484848'
-		widget:setActionId(pair[1])
-		widget.color = color
-		widget:setId(pair[2])
-		widget:setText(pair[2])
-		widget:setBackgroundColor(color)
-	end
-
-	local firstWidget = categoryPanel:getFirstChild()
-	if firstWidget then
-		categoryPanel:moveChildToIndex(firstWidget, 2)
-	end
-
-	local lastWidget = categoryPanel:getChildById('Weapons: All')
-	if lastWidget then
-		categoryPanel:moveChildToIndex(lastWidget, categoryPanel:getChildCount())
-	end
-
-	marketCatalogBuilding = false
-	marketCatalogReady = true
-	if onComplete then
-		onComplete()
-	end
-end
-
 local function renderMarketCategories(generation, onComplete)
 	local categoryPanel = marketWindow.contentPanel.category
 	categoryPanel:destroyChildren()
@@ -624,9 +591,8 @@ local function renderMarketCategories(generation, onComplete)
 			categoryPanel:moveChildToIndex(lastWidget, categoryPanel:getChildCount())
 		end
 
-		marketCatalogBuilding = false
-		marketCatalogReady = true
 		onComplete()
+		categoryPanel:setEnabled(true)
 	end
 
 	scheduleMarketCatalogStep(generation, renderBatch)
@@ -660,6 +626,7 @@ local function addMarketCatalogTask(task, addedItems)
 		thingType = thingType,
 		marketData = marketData
 	}
+	marketItemNames[itemId] = marketData.name
 	data.sortName = string.lower(tostring(data.marketData.name or ''))
 	marketItems[category][#marketItems[category] + 1] = data
 	if (category >= MarketCategory.Ammunition and category <= MarketCategory.WandsRods) or
@@ -669,60 +636,16 @@ local function addMarketCatalogTask(task, addedItems)
 	addedItems[itemId] = true
 end
 
-local function hasServerCatalogEntries(serverCatalog)
-	for index = 1, #serverCatalog do
-		local entry = serverCatalog[index]
-		if type(entry) == 'table' and (tonumber(entry[2]) or 0) == 0 then
-			return true
-		end
-	end
-	return false
-end
-
-local function configureListFromServerSync(serverItems, onComplete)
-	cancelMarketCatalogBuild()
-	marketCatalogBuilding = true
-
-	marketItems = {}
-	for category = MarketCategory.First, MarketCategory.WeaponsAll do
-		marketItems[category] = {}
-	end
-
-	local addedItems = {}
-	local tasks = {}
-	for index = 1, #serverItems do
-		local entry = serverItems[index]
-		if type(entry) == 'table' and (tonumber(entry[2]) or 0) == 0 then
-			tasks[#tasks + 1] = {
-				itemId = entry.itemId or entry[1],
-				category = entry.category,
-				name = entry.name,
-				classification = entry.classification,
-				requiredLevel = entry.requiredLevel,
-				restrictVocation = entry.restrictVocation
-			}
-		end
-	end
-
-	for index = 1, #tasks do
-		addMarketCatalogTask(tasks[index], addedItems)
-	end
-
-	buildCategoryList()
-	renderMarketCategoriesSync(onComplete)
-end
-
 function configureList(serverItems, onComplete)
-	if hasServerCatalogEntries(serverItems or {}) then
-		configureListFromServerSync(serverItems, onComplete)
-		return
-	end
-
 	cancelMarketCatalogBuild()
-	marketCatalogBuilding = true
 	local generation = marketCatalogGeneration
+	local categoryPanel = marketWindow.contentPanel.category
+	categoryPanel.onChildFocusChange = nil
+	categoryPanel:setEnabled(false)
+	categoryPanel:destroyChildren()
 
 	marketItems = {}
+	marketItemNames = {}
 	for category = MarketCategory.First, MarketCategory.WeaponsAll do
 		marketItems[category] = {}
 	end
@@ -908,8 +831,6 @@ function onMarketEnter(offerCount, items)
 	end
 
 	cancelMarketCatalogBuild()
-	marketCatalogReady = false
-
 	if marketWindow and not marketWindow:isDestroyed() and not marketWindow:isVisible() then
 		show()
 	end
@@ -2312,20 +2233,16 @@ function onMarketDetail(itemID, tier, details, purchase, sale)
 end
 
 function getItemNameById(itemId)
-	for _, marketItem in pairs(marketItems) do
-		if marketItem then
-			for _, data in pairs(marketItem) do
-				if data.thingType:getId() == itemId then
-					return data.marketData.name
-				end
-			end
-		end
+	local cachedName = marketItemNames[itemId]
+	if cachedName and cachedName ~= '' then
+		return cachedName
 	end
 
 	local thingType = g_things.getThingType(itemId, ThingCategoryItem)
 	if thingType then
 		local marketData = thingType:getMarketData()
 		if marketData and marketData.name and marketData.name ~= '' then
+			marketItemNames[itemId] = marketData.name
 			return marketData.name
 		end
 	end

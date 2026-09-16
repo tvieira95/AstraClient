@@ -291,7 +291,7 @@ void Tile::drawTop(const Point& dest, LightView* lightView)
     for (int i = limit; i >= 0; --i) {
         if (m_effects[i]->isHidden())
             continue;
-        if (m_effects[i]->getId() == Otc::LootHighlightEffectId)
+        if (m_effects[i]->getId() == Otc::LootHighlightEffectId && g_game.getFeature(Otc::GameContainerTypes))
             continue;
         m_effects[i]->draw(dest - m_drawElevation * g_sprites.getOffsetFactor(), m_position.x - g_map.getCentralPosition().x, m_position.y - g_map.getCentralPosition().y, true, lightView);
     }

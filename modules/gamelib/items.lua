@@ -125,6 +125,7 @@ ItemsDatabase.dirtyRarityItemIds = ItemsDatabase.dirtyRarityItemIds or {}
 ItemsDatabase.refreshAllTrackedRarityWidgets = ItemsDatabase.refreshAllTrackedRarityWidgets or false
 ItemsDatabase.rarityWidgetsByItemId = ItemsDatabase.rarityWidgetsByItemId or {}
 ItemsDatabase.rarityWidgetItemIds = ItemsDatabase.rarityWidgetItemIds or setmetatable({}, { __mode = 'k' })
+ItemsDatabase.rarityWidgetDestroyHooked = ItemsDatabase.rarityWidgetDestroyHooked or setmetatable({}, { __mode = 'k' })
 
 local SERVER_VALUE_CACHE_SCHEMA = 2
 local SERVER_VALUE_CACHE_SAVE_DELAY = 5000
@@ -417,6 +418,11 @@ function ItemsDatabase.untrackRarityWidget(widget)
   ItemsDatabase.rarityWidgetItemIds[widget] = nil
 end
 
+local function onTrackedRarityWidgetDestroy(widget)
+  ItemsDatabase.untrackRarityWidget(widget)
+  ItemsDatabase.rarityWidgetDestroyHooked[widget] = nil
+end
+
 function ItemsDatabase.trackRarityWidget(widget, item)
   local itemId = getRarityItemId(item)
   if not itemId or itemId ~= itemId or itemId <= 0 or itemId > MAX_SERVER_ITEM_ID then
@@ -443,6 +449,10 @@ function ItemsDatabase.trackRarityWidget(widget, item)
 
   ItemsDatabase.rarityWidgetItemIds[widget] = itemId
   bucket[widget] = true
+  if not ItemsDatabase.rarityWidgetDestroyHooked[widget] then
+    connect(widget, { onDestroy = onTrackedRarityWidgetDestroy })
+    ItemsDatabase.rarityWidgetDestroyHooked[widget] = true
+  end
   return itemId
 end
 
