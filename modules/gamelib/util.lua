@@ -275,6 +275,7 @@ ObjectCategory = {
   OBJECTCATEGORY_TIBIACOINS = 23,
   OBJECTCATEGORY_CREATUREPRODUCTS = 24,
   OBJECTCATEGORY_QUIVER = 25,
+  OBJECTCATEGORY_SOULCORES = 26,
   OBJECTCATEGORY_FIST = 27,
   OBJECTCATEGORY_GOLD = 30,
   OBJECTCATEGORY_DEFAULT = 31,
@@ -296,12 +297,17 @@ ObjectCategoryOrder = {
   ObjectCategory.OBJECTCATEGORY_AMMO, ObjectCategory.OBJECTCATEGORY_AXES,
   ObjectCategory.OBJECTCATEGORY_CLUBS, ObjectCategory.OBJECTCATEGORY_DISTANCEWEAPONS,
   ObjectCategory.OBJECTCATEGORY_FIST, ObjectCategory.OBJECTCATEGORY_SWORDS,
-  ObjectCategory.OBJECTCATEGORY_WANDS, ObjectCategory.OBJECTCATEGORY_QUIVER
+  ObjectCategory.OBJECTCATEGORY_WANDS, ObjectCategory.OBJECTCATEGORY_PREMIUMSCROLLS,
+  ObjectCategory.OBJECTCATEGORY_QUIVER, ObjectCategory.OBJECTCATEGORY_SOULCORES
 }
 
 function getObjectCategoryName(category)
   if (category == ObjectCategory.OBJECTCATEGORY_QUIVER) then
     return "Quivers"
+  elseif (category == ObjectCategory.OBJECTCATEGORY_PREMIUMSCROLLS) then
+    return "Premium\nScrolls"
+  elseif (category == ObjectCategory.OBJECTCATEGORY_SOULCORES) then
+    return "Soul\nCores"
   elseif (category == ObjectCategory.OBJECTCATEGORY_WANDS) then
     return "Weapons:\nWands"
   elseif (category == ObjectCategory.OBJECTCATEGORY_SWORDS) then

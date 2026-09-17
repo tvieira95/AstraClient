@@ -63,6 +63,7 @@ function updateFeatures(version)
     g_game.enableFeature(GamePrey)
     -- TFS 8.60 managed quick loot uses the Astra/Fonticak wire format.
     g_game.enableFeature(GameQuickLootFlags)
+    -- GameShopCountU16 is negotiated dynamically via GameServerFeatures (0x43).
   elseif version == 1524 then
     -- Reserved for the future 15.24 profile.
   end
